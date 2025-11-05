@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNAKE TOWER DEFENSE</title>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #222;
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+    }
+    #gameCanvas {
+        background: #333;
+        border: 2px solid #fff;
+        touch-action: none;
+    }
+    #menu, #shop {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        padding: 20px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 10;
+    }
+    button {
+        padding: 10px;
+        border: none;
+        border-radius: 5px;
+        background: #555;
+        color: #fff;
+        font-size: 16px;
+    }
+    button:hover {
+        background: #777;
+    }
+</style>
+</head>
+<body>
+
+<div id="menu">
+    <h2>SNAKE TOWER DEFENSE</h2>
+    <label>Choose Mode:</label>
+    <select id="modeSelect">
+        <option value="easy">Easy (10 waves)</option>
+        <option value="hard">Hard (25 waves)</option>
+        <option value="extreme">Extreme (50 waves)</option>
+        <option value="endless">Endless</option>
+    </select>
+    <button onclick="startGame()">Start Game</button>
+</div>
+
+<canvas id="gameCanvas" width="480" height="720"></canvas>
+
+<div id="shop" style="display:none;">
+    <h3>Summon Units</h3>
+    <button onclick="summonUnit('fire')">Fire Snake (Red)</button>
+    <button onclick="summonUnit('water')">Water Snake (Blue)</button>
+    <button onclick="summonUnit('dirt')">Dirt Snake (Brown)</button>
+    <h3>Upgrade Units</h3>
+    <button onclick="upgradeUnits()">Upgrade All Units</button>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameMode = 'easy';
+let units = [];
+let enemies = [];
+let wave = 0;
+let maxWave = 10;
+let isGameRunning = false;
+
+// UNIT AND ENEMY CONFIGURATION
+const unitTypes = {
+    fire: { color: 'red', damage: 2, range: 50 },
+    water: { color: 'blue', damage: 1.5, range: 70 },
+    dirt: { color: 'brown', damage: 3, range: 40 }
+};
+
+const enemyTypes = {
+    diddy: { color: 'white', health: 5, speed: 1 },
+    skibidi: { color: 'green', health: 10, speed: 0.8 },
+    boss: { color: 'pink', health: 50, speed: 0.5 }
+};
+
+// START GAME
+function startGame() {
+    const modeSelect = document.getElementById('modeSelect');
+    gameMode = modeSelect.value;
+    wave = 0;
+    isGameRunning = true;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('shop').style.display = 'flex';
+    setMaxWave();
+    spawnWave();
+    requestAnimationFrame(gameLoop);
+}
+
+function setMaxWave() {
+    if(gameMode === 'easy') maxWave = 10;
+    else if(gameMode === 'hard') maxWave = 25;
+    else if(gameMode === 'extreme') maxWave = 50;
+    else maxWave = Infinity; // endless
+}
+
+// SUMMON UNIT
+function summonUnit(type) {
+    const unit = {
+        type: type,
+        x: canvas.width / 2,
+        y: canvas.height - 50,
+        damage: unitTypes[type].damage,
+        range: unitTypes[type].range
+    };
+    units.push(unit);
+}
+
+// UPGRADE UNITS
+function upgradeUnits() {
+    units.forEach(u => u.damage *= 1.5);
+}
+
+// SPAWN ENEMY WAVE
+function spawnWave() {
+    wave++;
+    if(wave > maxWave) return;
+    for(let i=0; i<5; i++){
+        let enemyType = i % 3 === 0 ? 'diddy' : i % 3 === 1 ? 'skibidi' : 'boss';
+        enemies.push({
+            type: enemyType,
+            x: Math.random() * canvas.width,
+            y: -50,
+            health: enemyTypes[enemyType].health,
+            speed: enemyTypes[enemyType].speed
+        });
+    }
+}
+
+// GAME LOOP
+function gameLoop() {
+    if(!isGameRunning) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // DRAW UNITS
+    units.forEach(u => {
+        ctx.fillStyle = unitTypes[u.type].color;
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, 15, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    // DRAW ENEMIES
+    enemies.forEach((e, idx) => {
+        ctx.fillStyle = enemyTypes[e.type].color;
+        ctx.fillRect(e.x, e.y, 30, 30);
+        e.y += e.speed;
+
+        // CHECK UNIT DAMAGE
+        units.forEach(u => {
+            const dist = Math.hypot(u.x - e.x, u.y - e.y);
+            if(dist < u.range){
+                e.health -= u.damage;
+            }
+        });
+
+        // REMOVE DEAD ENEMIES
+        if(e.health <= 0){
+            enemies.splice(idx, 1);
+        }
+    });
+
+    // SPAWN NEXT WAVE IF ALL ENEMIES DEAD
+    if(enemies.length === 0 && wave < maxWave){
+        spawnWave();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// MOBILE TOUCH CONTROL (drag units)
+let selectedUnit = null;
+canvas.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    units.forEach(u => {
+        if(Math.hypot(u.x - touch.clientX, u.y - touch.clientY) < 20){
+            selectedUnit = u;
+        }
+    });
+});
+canvas.addEventListener('touchmove', e => {
+    if(selectedUnit){
+        const touch = e.touches[0];
+        selectedUnit.x = touch.clientX - canvas.getBoundingClientRect().left;
+        selectedUnit.y = touch.clientY - canvas.getBoundingClientRect().top;
+    }
+});
+canvas.addEventListener('touchend', e => { selectedUnit = null; });
+</script>
+
+</body>
+</html>
